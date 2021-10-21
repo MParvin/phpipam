@@ -47,7 +47,7 @@ class SubnetsTable {
 
 		$this->Tools->get_Settings();
 
-		$hiddenCustomFields = json_decode($this->Tools->settings->hiddenCustomFields, true);
+		$hiddenCustomFields = json_decode($this->Tools->settings->hiddenCustomFields, true) ? : ['subnets'=>null];
 		$this->hidden_fields = is_array($hiddenCustomFields['subnets']) ? $hiddenCustomFields['subnets'] : array();
 
 		# fetch all vlans and domains and reindex
@@ -105,7 +105,7 @@ class SubnetsTable {
 
 		//vlan
 		if (isset($this->all_vlans[$subnet->vlanId]->number)) {
-			$tr['vlan'] = $this->all_vlans[$subnet->vlanId]->domainId==1 ? $this->all_vlans[$subnet->vlanId]->number : $this->all_vlans[$subnet->vlanId]->number." <span class='badge badge1 badge5' rel='tooltip' title='VLAN is in domain ".$this->all_vlans[$subnet->vlanId]->domainName."'>".$this->all_vlans[$subnet->vlanId]->domainName."</span>";
+			$tr['vlan'] = $this->all_vlans[$subnet->vlanId]->domainId==1 ? $this->all_vlans[$subnet->vlanId]->number : $this->all_vlans[$subnet->vlanId]->number." <span class='badge badge1 badge5' rel='tooltip' title='"._('VLAN is in domain'). ".$this->all_vlans[$subnet->vlanId]->domainName.'>".$this->all_vlans[$subnet->vlanId]->domainName."</span>";
 		} else {
 			$tr['vlan'] = _('Default');
 		}
@@ -167,11 +167,11 @@ class SubnetsTable {
 					//text
 					elseif($field['type']=="text") {
 						if(strlen($subnet->{$field['name']})>0)
-							$tr[$field_name] = "<i class='fa fa-gray fa-comment' rel='tooltip' data-container='body' data-html='true' title='". htmlentities($subnet->{$field['name']}) ."'>";
+							$tr[$field_name] = "<i class='fa fa-gray fa-comment' rel='tooltip' data-container='body' data-html='true' title='". ($subnet->{$field['name']}) ."'>";
 						else
 							$tr[$field_name] = '';
 					} else {
-						$tr[$field_name] = htmlentities($subnet->{$field['name']});
+						$tr[$field_name] = ($subnet->{$field['name']});
 					}
 				}
 			}

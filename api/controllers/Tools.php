@@ -8,15 +8,6 @@
 
 class Tools_controller extends Common_api_functions {
 
-
-	/**
-	 * _params provided
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $_params;
-
 	/**
 	 * subcontrollers
 	 *
@@ -41,45 +32,6 @@ class Tools_controller extends Common_api_functions {
 	 */
 	protected $identifiers;
 
-	/**
-	 * Database object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Database;
-
-	/**
-	 * Response
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Response;
-
-	/**
-	 * Master Tools object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Tools;
-
-	/**
-	 * Main Admin class
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Admin;
-
-	/**
-	 * Main Subnets class
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Subnets;
 
 	/**
 	 * __construct function
@@ -416,21 +368,6 @@ class Tools_controller extends Common_api_functions {
 
 
 
-
-	/**
-	 * HEAD, no response
-	 *
-	 * @access public
-	 * @return void
-	 */
-	public function HEAD () {
-		return $this->GET ();
-	}
-
-
-
-
-
 	/**
 	 * Updates tools object
 	 *
@@ -673,14 +610,15 @@ class Tools_controller extends Common_api_functions {
 	}
 
 	/**
-	 * Get latlng from Google
+	 * Get latlng from Nominatim
 	 *
 	 * @method format_location
 	 * @return [type]          [description]
 	 */
 	private function format_location () {
 		if((strlen(@$this->_params->lat)==0 || strlen(@$this->_params->long)==0) && strlen(@$this->_params->address)>0) {
-            $latlng = $this->Tools->get_latlng_from_address ($this->_params->address);
+            $OSM = new OpenStreetMap($this->Database);
+            $latlng = $OSM->get_latlng_from_address ($this->_params->address);
             if($latlng['lat']!=NULL && $latlng['lng']!=NULL) {
                 $this->_params->lat  = $latlng['lat'];
                 $this->_params->long = $latlng['lng'];

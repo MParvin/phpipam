@@ -15,8 +15,9 @@ to be able to display javascript quickly and correctly.
 
 ## Branches
  - MASTER: Current development release
+ - 1.5: Productional branch for 1.5.x release
  - 1.4: Productional branch for 1.4.x release
- - 1.3: Productional branch for 1.3.x release
+ - 1.3: Productional branch for 1.3.x release (obsolete)
  - 1.2: Productional branch for 1.2.x release (obsolete)
  - Other branches: Feature testing
 
@@ -31,10 +32,14 @@ the demo page: `Admin / ipamadmin`
 Community maintained docker images are available at https://hub.docker.com/u/phpipam
 
 ## Changelog
-See misc/CHANGELOG
+See [misc/CHANGELOG](misc/CHANGELOG)
 
 ## Roadmap
-See misc/Roadmap
+See [misc/Roadmap](misc/Roadmap)
+
+## Security
+
+See [SECURITY.md](SECURITY.md)
 
 ## Contact
 miha.petkovsek@gmail.com
@@ -45,4 +50,4 @@ that is used for development of phpIPAM and for demo site.
 And also to all users that filed a bug report / feature report and helped with feature testing!
 
 ## License
-phpIPAM is released under the GPL v3 license, see misc/gpl-3.0.txt.
+phpIPAM is released under the GPL v3 license, see [misc/gpl-3.0.txt](misc/gpl-3.0.txt).

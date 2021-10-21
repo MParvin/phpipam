@@ -201,6 +201,17 @@ class User extends Common_functions {
         else {
             session_start ();
         }
+
+        // Re-set HTTP session cookie with mandatory samesite=Strict attribute.
+        // php native support for samesite is >=php7.3
+
+        $session_name = session_name();
+        $session_id = session_id();
+        $session_lifetime = ini_get('session.cookie_lifetime');
+        $session_use_cookies  = ini_get('session.use_cookies');
+
+        if ($session_use_cookies && is_string($session_id) && strlen($session_id) > 0)
+            setcookie_samesite($session_name, $session_id, $session_lifetime, true);
     }
 
     /**
@@ -254,6 +265,9 @@ class User extends Common_functions {
     private function write_session_parameters () {
         // not for api
         if ($this->api !== true) {
+            // Avoid session ID fixation attacks
+            session_regenerate_id(true);
+
             $_SESSION['ipamusername'] = $this->user->username;
             $_SESSION['ipamlanguage'] = $this->fetch_lang_details ();
             $_SESSION['lastactive']   = time();
@@ -303,7 +317,7 @@ class User extends Common_functions {
                     $this->reset_inactivity_time();
                     $this->update_activity_time ();
                     # bind language
-                    $this->set_ui_language();
+                    set_ui_language();
                 }
             }
         }
@@ -344,11 +358,11 @@ class User extends Common_functions {
      * @return string|false
      */
     public function check_user_session ($redirect = true, $ignore_2fa = false) {
+        # set url
+        $url = $this->createURL();
+
         # not authenticated
         if($this->authenticated===false) {
-            # set url
-            $url = $this->createURL();
-
             # error print for AJAX
             if(@$_SERVER['HTTP_X_REQUESTED_WITH'] == "XMLHttpRequest") {
                 # for AJAX always check origin
@@ -456,23 +470,31 @@ class User extends Common_functions {
      */
     private function set_redirect_cookie () {
         # save current redirect vaule
-        if($_SERVER['SCRIPT_URL']!="/login/" && $_SERVER['SCRIPT_URL']!="logout" && $_SERVER['SCRIPT_URL']!="?page=login" && $_SERVER['SCRIPT_URL']!="?page=logout" && $_SERVER['SCRIPT_URL']!="index.php?page=login" && $_SERVER['SCRIPT_URL']!="index.php?page=logout" && $_SERVER['SCRIPT_URL']!="/" && $_SERVER['SCRIPT_URL']!="%2f");
-        setcookie("phpipamredirect", preg_replace('/^\/+/', '/', $_SERVER['REQUEST_URI']), time()+10, "/", null, null, true);
-    }
-
-    /**
-     * Sets translation for logged in user
-     *
-     * @access private
-     * @return void
-     */
-    private function set_ui_language () {
-        if(strlen($_SESSION['ipamlanguage'])>0)     {
-            putenv("LC_ALL=$_SESSION[ipamlanguage]");
-            bindtextdomain("phpipam", dirname(__FILE__)."/../locale");    // Specify location of translation tables
-            setlocale(LC_ALL, $_SESSION['ipamlanguage']);        // set language
-            textdomain("phpipam");                                // Choose domain
+        if (isset($_SERVER['SCRIPT_URL'])) {
+            if( $_SERVER['SCRIPT_URL']=="/login/" ||
+                $_SERVER['SCRIPT_URL']=="logout" ||
+                $_SERVER['SCRIPT_URL']=="?page=login" ||
+                $_SERVER['SCRIPT_URL']=="?page=logout" ||
+                $_SERVER['SCRIPT_URL']=="index.php?page=login" ||
+                $_SERVER['SCRIPT_URL']=="index.php?page=logout" ||
+                $_SERVER['SCRIPT_URL']=="/" ||
+                $_SERVER['SCRIPT_URL']=="%2f")
+            {
+                return;
+            }
         }
+
+        if (isset($_SERVER['HTTP_X_FORWARDED_URI'])) {
+            $uri = $_SERVER['HTTP_X_FORWARDED_URI'];
+        }
+        elseif (isset($_SERVER['REQUEST_URI'])) {
+            $uri = $_SERVER['REQUEST_URI'];
+        }
+        else {
+            return;
+        }
+
+        setcookie_samesite("phpipamredirect", preg_replace('/^\/+/', '/', $uri), 10, true);
     }
 
     /**
@@ -704,7 +726,6 @@ class User extends Common_functions {
      * @return boolean
      */
     public function is_subnet_favourite ($subnetId) {
-        $this->fetch_favourite_subnets ();
         # check if in array
         $subnets = explode(";", $this->user->favourite_subnets);
         $subnets = array_filter($subnets);
@@ -752,9 +773,6 @@ class User extends Common_functions {
      * @return void
      */
     public function authenticate ($username, $password, $saml = false) {
-        if(($saml !== false ) && (defined('MAP_SAML_USER')) && (MAP_SAML_USER !== false)) {
-            $username = SAML_USERNAME;
-        }
         # first we need to check if username exists
         $this->fetch_user_details ($username);
         # set method type if set, otherwise presume local auth
@@ -770,7 +788,7 @@ class User extends Common_functions {
 
         # authenticate based on name of auth method
         if(!method_exists($this, $this->authmethodtype))    {
-            $this->Log->write ("User login", _('Error: Invalid authentication method'), 2 );
+            $this->Log->write ( _("User login"), _('Error: Invalid authentication method'), 2 );
             $this->Result->show("danger", _("Error: Invalid authentication method"), true);
         }
         # disabled
@@ -785,7 +803,7 @@ class User extends Common_functions {
             }
             # is auth_SAML and $saml == false throw error
             if ($authmethodtype=="auth_SAML2" && $saml===false) {
-                $this->Result->show("danger", "Please use <a href='".create_link('saml2')."'>login</a>!", true);
+                $this->Result->show("danger", _("Please use")." <a href='".create_link('saml2')."'>"._("login")."</a>!", true);
             }
             else {
                 # authenticate
@@ -805,17 +823,30 @@ class User extends Common_functions {
     private function fetch_user_details ($username, $force = false) {
         # only if not already active
         if(!is_object($this->user) || $force) {
-            try { $user = $this->Database->findObject("users", "username", $username); }
-            catch (Exception $e)     { $this->Result->show("danger", _("Error: ").$e->getMessage(), true);}
+            try {
+                $user = $this->Database->findObject("users", "username", $username);
+            }
+            catch (Exception $e) {
+                $this->Result->show("danger", _("Error: ").$e->getMessage(), true);
+            }
 
             # if not result return false
             $usert = (array) $user;
 
             # admin?
-            if($user->role == "Administrator")    { $this->isadmin = true; }
+            if($user->role == "Administrator") {
+                $this->isadmin = true;
+            }
 
-            if(sizeof($usert)==0)    { $this->block_ip (); $this->Log->write ("User login", _('Invalid username'), 2, $username ); $this->Result->show("danger", _("Invalid username or password"), true);}
-            else                     { $this->user = $user; }
+            if(sizeof($usert)==0) {
+                $this->block_ip ();
+                $this->log_failed_access ($username);
+                $this->Log->write ( _("User login"), _('Invalid username'), 2, $username );
+                $this->Result->show("danger", _("Invalid username or password"), true);
+            }
+            else {
+                $this->user = $user;
+            }
 
             // register permissions
             $this->register_user_module_permissions ();
@@ -895,7 +926,7 @@ class User extends Common_functions {
             $this->write_session_parameters ();
 
             $this->Result->show("success", _("Login successful"));
-            $this->Log->write( "User login", "User ".$this->user->real_name." logged in", 0, $username );
+            $this->Log->write( _("User login"), _("User")." ".$this->user->real_name." "._("logged in"), 0, $username );
 
             # write last logintime
             $this->update_login_time ();
@@ -907,8 +938,9 @@ class User extends Common_functions {
         else {
             # add blocked count
             $this->block_ip ();
+            $this->log_failed_access ($username);
 
-            $this->Log->write( "User login", "Invalid username or password", 2, $username );
+            $this->Log->write( _("User login"), _("Invalid username or password"), 2, $username );
 
             # apache
             if (!empty($_SERVER['PHP_AUTH_USER']) && $this->api!==true) { $this->show_http_login(); }
@@ -930,7 +962,7 @@ class User extends Common_functions {
         $this->write_session_parameters ();
 
         $this->Result->show("success", _("Login successful"));
-        $this->Log->write( "User login", "User ".$this->user->real_name." logged in", 0, $username );
+        $this->Log->write( _("User login"), _("User")." ".$this->user->real_name." "._("logged in"), 0, $username );
 
         # write last logintime
         $this->update_login_time ();
@@ -992,7 +1024,7 @@ class User extends Common_functions {
             # Initialize adLDAP
             $dirconn = new adLDAP($dirparams);
         } catch (adLDAPException $e) {
-            $this->Log->write("Directory connection error", "Failed to connect: " . $e->getMessage(), 2, null);
+            $this->Log->write( _("Directory connection error"), _("Failed to connect").": " . $e->getMessage(), 2, null);
             $this->Result->show("danger", _("Error: ") . $e->getMessage(), true);
         }
         return $dirconn;
@@ -1023,8 +1055,8 @@ class User extends Common_functions {
                 # save to session
                 $this->write_session_parameters();
 
-                $this->Log->write($method . " login", "User " . $this->user->real_name . " logged in via " . $method, 0, $username);
-                $this->Result->show("success", _($method . " Login successful"));
+                $this->Log->write($method." "._("login"), _("User")." " . $this->user->real_name ." "._("logged in via")." ".$method, 0, $username);
+                $this->Result->show("success", $method." "._("Login successful"));
 
                 # write last logintime
                 $this->update_login_time();
@@ -1034,12 +1066,13 @@ class User extends Common_functions {
             else {
                 # add blocked count
                 $this->block_ip();
-                $this->Log->write($method . " login", "User $username failed to authenticate against " . $method, 1, $username);
+                $this->log_failed_access ($username);
+                $this->Log->write($method." "._("login"), _("User")." ".$username." "._("failed to authenticate against")." ".$method, 1, $username);
                 $this->Result->show("danger", _("Invalid username or password"), true);
 
             }
         } catch (adLDAPException $e) {
-            $this->Log->write("Error", "Something went wrong during auth: " . $e->getMessage(), 2, $username);
+            $this->Log->write( _("Error"), _("Something went wrong during auth: ") . $e->getMessage(), 2, $username);
             $this->Result->show("danger", _("Error: ") . $e->getMessage(), true);
         }
     }
@@ -1111,7 +1144,7 @@ class User extends Common_functions {
 
         # check for socket support !
         if(!in_array("sockets", get_loaded_extensions())) {
-            $this->Log->write( "Radius login", "php Socket extension missing", 2 );
+            $this->Log->write( _("Radius login"), _("php Socket extension missing"), 2 );
             $this->Result->show("danger", _("php Socket extension missing"), true);
         }
 
@@ -1135,7 +1168,7 @@ class User extends Common_functions {
             # save to session
             $this->write_session_parameters ();
 
-            $this->Log->write( "Radius login", "User ".$this->user->real_name." logged in via radius", 0, $username );
+            $this->Log->write( _("Radius login"), _("User")." ".$this->user->real_name." "._("logged in via radius"), 0, $username );
             $this->Result->show("success", _("Radius login successful"));
 
             # write last logintime
@@ -1146,7 +1179,8 @@ class User extends Common_functions {
         else {
             # add blocked count
             $this->block_ip ();
-            $this->Log->write( "Radius login", "Failed to authenticate user on radius server", 2, $username );
+            $this->log_failed_access ($username);
+            $this->Log->write( _("Radius login"), _("Failed to authenticate user on radius server"), 2, $username );
             $this->Result->show("danger", _("Invalid username or password"), true);
         }
     }
@@ -1163,7 +1197,7 @@ class User extends Common_functions {
         # save to session
         $this->write_session_parameters ();
 
-        $this->Log->write( "SAML2 login", "User ".$this->user->real_name." logged in via SAML2", 0, $username );
+        $this->Log->write( _("SAML2 login"), _("User")." ".$this->user->real_name." "._("logged in via SAML2"), 0, $username );
         $this->Result->show("success", _("SAML2 login successful"));
 
         # write last logintime
@@ -1238,7 +1272,7 @@ class User extends Common_functions {
         elseif(CRYPT_SHA256 == 1)    { return 'CRYPT_SHA256'; }
         elseif(CRYPT_BLOWFISH == 1)  { return 'CRYPT_BLOWFISH'; }
         elseif(CRYPT_MD5 == 1)       { return 'CRYPT_MD5'; }
-        else                         { return "No crypt types supported"; }
+        else                         { return _("No crypt types supported"); }
     }
 
     /**
@@ -1252,7 +1286,7 @@ class User extends Common_functions {
         try { $this->Database->updateObject("users", array("password"=>$this->crypt_user_pass ($password), "passChange"=>"No", "id"=>$this->user->id), "id"); }
         catch (Exception $e) { $this->Result->show("danger", $e->getMessage(), true); }
 
-        $this->Result->show("success", "Hi, ".$this->user->real_name.", "._("your password was updated").". <a class='btn btn-sm btn-default' href='".create_link("dashboard")."'>Dashboard</a>", false);
+        $this->Result->show("success", _("Hi").", ".$this->user->real_name.", "._("your password was updated").". <a class='btn btn-sm btn-default' href='".create_link("dashboard")."'>Dashboard</a>", false);
     }
 
 
@@ -1305,14 +1339,14 @@ class User extends Common_functions {
         try { $this->Database->updateObject("users", $items); }
         catch (Exception $e) {
             $this->Result->show("danger", _("Error: ").$e->getMessage(), false);
-            $this->Log->write( "User self update", "User self update failed!<br>".$log, 2 );
+            $this->Log->write( _("User self update"), _("User self update failed")."!<br>".$log, 2 );
             return false;
         }
         # update language
         $this->update_session_language ();
 
         # ok, update log table
-        $this->Log->write( "User self update", "User self update suceeded!", 0 );
+        $this->Log->write( _("User self update"), _("User self update suceeded")."!", 0 );
         return true;
     }
 
@@ -1487,6 +1521,22 @@ class User extends Common_functions {
     private function block_remove_entry() {
         try { $this->Database->deleteRow("loginAttempts", "ip", $this->ip); }
         catch (Exception $e) { !$this->debugging ? : $this->Result->show("danger", $e->getMessage(), false); }
+    }
+
+    /**
+     * log failed accesses, for further processing by tools like Fail2Ban
+     *
+     * @access private
+     * @return void
+     */
+    private function log_failed_access($username) {
+        $log_msg = Config::ValueOf('failed_access_message');
+
+        if (!is_string($username) || !is_string($log_msg) || strlen($log_msg)<1)
+            return;
+
+        $log_msg = str_replace("%u", $username, $log_msg);
+        error_log($log_msg, 4);
     }
 
 
@@ -1726,6 +1776,7 @@ class User extends Common_functions {
     public function get_modules_with_permissions () {
         return [
                 "vlan",
+                "l2dom",
                 "vrf",
                 "pdns",
                 "circuits",
@@ -1736,7 +1787,8 @@ class User extends Common_functions {
                 "locations",
                 "devices",
                 "dhcp",
-                "routing"
+                "routing",
+                "vaults"
             ];
     }
 

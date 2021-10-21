@@ -1,5 +1,8 @@
 <?php
 
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../../functions/include-only.php' );
+
 # perm check
 $User->check_module_permissions ("circuits", User::ACCESS_R, true, false);
 
@@ -10,9 +13,9 @@ print "<hr>";
 print "<table class='ipaddress_subnet table-condensed table-auto'>";
 
 // inactive status
-$circuit->status = $circuit->status=="Inactive" ? "<span class='badge badge1 badge5 alert-danger'>$circuit->status</span>" : $circuit->status;
-$circuit->status = $circuit->status=="Active" ? "<span class='badge badge1 badge5 alert-success'>$circuit->status</span>" : $circuit->status;
-$circuit->status = $circuit->status=="Reserved" ? "<span class='badge badge1 badge5 alert-default'>$circuit->status</span>" : $circuit->status;
+$circuit->status = $circuit->status=="Inactive" ? "<span class='badge badge1 badge5 alert-danger'>"._("Inactive")."</span>" : $circuit->status;
+$circuit->status = $circuit->status=="Active" ? "<span class='badge badge1 badge5 alert-success'>"._("Active")."</span>" : $circuit->status;
+$circuit->status = $circuit->status=="Reserved" ? "<span class='badge badge1 badge5 alert-default'>"._("Reserved")."</span>" : $circuit->status;
 $circuit_types = $Tools->fetch_all_objects ("circuitTypes", "ctname");
 $type_hash = [];
 foreach($circuit_types as $t){  $type_hash[$t->id] = $t->ctname; }
@@ -94,10 +97,10 @@ if($User->get_module_permissions ("circuits")>=User::ACCESS_RW) {
 	print "	<td class='actions'>";
 
         $links = [];
-        $links[] = ["type"=>"header", "text"=>"Manage circuit"];
-        $links[] = ["type"=>"link", "text"=>"Edit circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='edit' data-circuitid='$circuit->id'", "icon"=>"pencil"];
+        $links[] = ["type"=>"header", "text"=>_("Manage circuit")];
+        $links[] = ["type"=>"link", "text"=>_("Edit circuit"), "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='edit' data-circuitid='$circuit->id'", "icon"=>"pencil"];
         if($User->get_module_permissions ("circuits")>=User::ACCESS_RWA) {
-            $links[] = ["type"=>"link", "text"=>"Delete circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='delete' data-circuitid='$circuit->id'", "icon"=>"times"];
+            $links[] = ["type"=>"link", "text"=>_("Delete circuit"), "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='delete' data-circuitid='$circuit->id'", "icon"=>"times"];
         }
         // print links
         print $User->print_actions($User->user->compress_actions, $links, true, true);

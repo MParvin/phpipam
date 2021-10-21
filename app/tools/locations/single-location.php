@@ -69,7 +69,7 @@ else {
             	print "<tr>";
             	print "	<th>"._('Coordinates')."</th>";
             	print "	<td>";
-            	print strlen($location->lat)>0 && strlen($location->long)>0 ? "<span class='text-muted'>".escape_input($location->lat)." / ".escape_input($location->long)."</span>" : "/";
+            	print strlen($location->lat)>0 && strlen($location->long)>0 ? "<span class='text-muted'>".escape_input($location->lat)." / ".escape_input($location->long)."</span> <a href='https://www.google.com/maps/@?api=1&map_action=map&center=".escape_input($location->lat)."%2C".escape_input($location->long). "&zoom=20&basemap=satellite' target='_blank'><i class='fa fa-gray fa-google' rel='tooltip' title='"._("Google Maps Satellite View")."'></i></a>" : "/";
             	print "</td>";
             	print "</tr>";
 
@@ -112,11 +112,11 @@ else {
                 	print "	<th></th>";
                 	print "	<td>";
                     $links = [];
-                    $links[] = ["type"=>"header", "text"=>"Manage"];
-                    $links[] = ["type"=>"link", "text"=>"Edit location", "href"=>"", "class"=>"open_popup", "dataparams"=>"data-script='app/admin/locations/edit.php' data-action='edit'  data-id='$location->id'", "icon"=>"pencil"];
+                    $links[] = ["type"=>"header", "text"=>_("Manage")];
+                    $links[] = ["type"=>"link", "text"=>_("Edit location"), "href"=>"", "class"=>"open_popup", "dataparams"=>"data-script='app/admin/locations/edit.php' data-action='edit'  data-id='$location->id'", "icon"=>"pencil"];
 
                     if($User->get_module_permissions ("locations")>=User::ACCESS_RWA) {
-                        $links[] = ["type"=>"link", "text"=>"Delete location", "href"=>"", "class"=>"open_popup", "dataparams"=>"data-script='app/admin/locations/edit.php' data-action='delete'  data-id='$location->id'", "icon"=>"times"];
+                        $links[] = ["type"=>"link", "text"=>_("Delete location"), "href"=>"", "class"=>"open_popup", "dataparams"=>"data-script='app/admin/locations/edit.php' data-action='delete'  data-id='$location->id'", "icon"=>"times"];
                         $links[] = ["type"=>"divider"];
                     }
                     // print links

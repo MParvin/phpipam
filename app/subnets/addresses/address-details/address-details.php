@@ -147,7 +147,7 @@ if(sizeof($address)>1) {
     	if(in_array('switch', $selected_ip_fields) && $User->get_module_permissions ("devices")>=User::ACCESS_R) {
     	print "<tr>";
     	print "	<th>"._('Device')."</th>";
-    	if(strlen($address['switch'])>0) {
+    	if(is_numeric($address['switch']) && $address['switch']>0) {
     		# get device
     		$device = (array) $Tools->fetch_object("devices", "id", $address['switch']);
     		$device = $Addresses->reformat_empty_array_fields($device, "");
@@ -201,7 +201,7 @@ if(sizeof($address)>1) {
 
 
     	# availability
-        print "<tr><td colspan='2'><h4 style='padding-top:20px;'>"._('Avalibility')."</h4></tr>";
+        print "<tr><td colspan='2'><h4 style='padding-top:20px;'>"._('Availability')."</h4></tr>";
     	print "<tr>";
 
     	# calculate
@@ -346,7 +346,7 @@ if(sizeof($address)>1) {
     			print "		<a class='search_ipaddress btn btn-default btn-xs         "; if(strlen($resolve['name']) == 0) { print "disabled"; } print "' href='".create_link("tools","search",$resolve['name'])."' "; if(strlen($resolve['name']) != 0)   { print "rel='tooltip' data-container='body' title='"._('Search same hostnames in db')."'"; } print ">	<i class='fa fa-gray fa-search'></i></a>";
     			print "		<a class='mail_ipaddress   btn btn-default btn-xs          ' href='#' data-id='".$address['id']."' rel='tooltip' data-container='body' title='"._('Send mail notification')."'>																																<i class='fa fa-gray fa-envelope-o'></i></a>";
     			if($zone) {
-    			print "		<a class='fw_autogen	   btn btn-default btn-xs          ' href='#' data-subnetid='".$subnet['id']."' data-action='adr' data-ipid='".$address['id']."' data-dnsname='".((preg_match('/\//i',$address['hostname'])) ? '':$address['hostname'])."' rel='tooltip' data-container='body' title='"._('Regenerate firewall addres object.')."'><i class='fa fa-gray fa-fire'></i></a>";
+    			print "		<a class='fw_autogen	   btn btn-default btn-xs          ' href='#' data-subnetid='".$subnet['id']."' data-action='adr' data-ipid='".$address['id']."' data-dnsname='".((preg_match('/\//i',$address['hostname'])) ? '':$address['hostname'])."' rel='tooltip' data-container='body' title='"._('Regenerate firewall address object.')."'><i class='fa fa-gray fa-fire'></i></a>";
     			}
     			print "		<a class='delete_ipaddress btn btn-default btn-xs modIPaddr' data-action='delete' data-subnetId='".$address['subnetId']."' data-id='".$address['id']."' href='#' id2='$address[ip]' rel='tooltip' data-container='body' title='"._('Delete IP address')."'>													<i class='fa fa-gray fa-times'></i></a>";
     			//share
@@ -383,18 +383,17 @@ if(sizeof($address)>1) {
     print "</td>";
 
 	# rack
-	if ($User->settings->enableRACK=="1") {
+	if ($User->settings->enableRACK=="1" && isset($device['rack'])) {
         // validate rack
         $rack = $Tools->fetch_object ("racks", "id", $device['rack']);
-        if ($rack!==false) {
-
-        print " <td style='width:200px;padding-right:20px;vertical-align:top !important;'>";
-            # title
-        	print "<h4>"._('Rack details')."</h4>";
-        	print "<hr>";
-            print "     <img src='".$Tools->create_rack_link ($device['rack'], $device['id'])."' class='pull-right' style='width:200px;'>";
-        print " </td>";
-        }
+        if (is_object($rack)) {
+			print " <td style='width:200px;padding-right:20px;vertical-align:top !important;'>";
+				# title
+				print "<h4>"._('Rack details')."</h4>";
+				print "<hr>";
+				print "     <img src='".$Tools->create_rack_link ($device['rack'], $device['id'])."' class='pull-right' style='width:200px;'>";
+			print " </td>";
+			}
     }
 
     print "</table>";

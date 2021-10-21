@@ -8,68 +8,12 @@
 class Subnets_controller extends Common_api_functions {
 
 	/**
-	 * _params provided
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $_params;
-
-	/**
-	 * custom_fields
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	public $custom_fields;
-
-	/**
 	 * settings
 	 *
 	 * @var mixed
 	 * @access protected
 	 */
 	protected $settings;
-
-	/**
-	 * Database object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Database;
-
-	/**
-	 * Response handler
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Response;
-
-	/**
-	 * Master Subnets object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Subnets;
-
-	/**
-	 * Master  Addresses object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Addresses;
-
-	/**
-	 * Master Tools object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Tools;
 
 
 	/**
@@ -140,8 +84,15 @@ class Subnets_controller extends Common_api_functions {
 		if(!isset($this->_params->isFolder)) { $this->_params->isFolder = "0"; }
 		elseif($this->_params->isFolder==1)	 { unset($this->_params->subnet, $this->_params->mask); }
 
-		if     ($this->_params->id2=="first_subnet") { $this->post_find_free_subnet(Subnets::SEARCH_FIND_FIRST); }
-		elseif ($this->_params->id2=="last_subnet")  { $this->post_find_free_subnet(Subnets::SEARCH_FIND_LAST); }
+		if ($this->_params->id2=="first_subnet" || $this->_params->id2=="last_subnet") {
+			$this->validate_subnet_id ();
+
+			// Obtain exclusive MySQL lock so parallel API requests on the same object are thread safe.
+			$Lock = new LockForUpdate($this->Database, 'subnets', $this->_params->id);
+
+			$direction = ($this->_params->id2=="first_subnet") ? Subnets::SEARCH_FIND_FIRST : Subnets::SEARCH_FIND_LAST;
+			$this->post_find_free_subnet($direction);
+		}
 
 		# validate parameters
         $this->validate_create_parameters ();
@@ -301,20 +252,6 @@ class Subnets_controller extends Common_api_functions {
 		}
 		// false
 		else 											{ $this->Response->throw_exception(404, 'Invalid Id'); }
-	}
-
-
-
-
-
-	/**
-	 * HEAD, no response
-	 *
-	 * @access public
-	 * @return array
-	 */
-	public function HEAD () {
-		return $this->GET ();
 	}
 
 
@@ -642,7 +579,7 @@ class Subnets_controller extends Common_api_functions {
 		if($subnet===false)
 														{ $this->Response->throw_exception(400, "Subnet does not exist"); }
 		# get usage
-		$subnet_usage = $this->Subnets->calculate_subnet_usage ($subnet, true);
+		$subnet_usage = $this->Subnets->calculate_subnet_usage ($subnet);
 		# return
 		return $subnet_usage;
 	}
@@ -752,8 +689,10 @@ class Subnets_controller extends Common_api_functions {
 
 		$subnet_gws = [];
 		$gateways = $this->Subnets->fetch_multiple_objects('ipaddresses', 'is_gateway', 1);
-		foreach($gateways as $gw) {
-			$subnet_gws[$gw->id][] = $this->transform_address ($gw);
+		if (is_array($gateways)) {
+			foreach($gateways as $gw) {
+				$subnet_gws[$gw->id][] = $this->transform_address ($gw);
+			}
 		}
 
 		// add nameservers, GW, permission and location for each network found

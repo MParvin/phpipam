@@ -1,3 +1,9 @@
+<?php
+
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../../functions/include-only.php' );
+
+?>
 <script>
 /* fix for ajax-loading tooltips */
 $('body').tooltip({ selector: '[rel=tooltip]' });
@@ -54,6 +60,7 @@ print "	<th><span class='hidden-sm hidden-xs'>"._('Status').'</span></th>';
 print "	<th><span class='hidden-sm hidden-xs'>"._('Point A').'</span></th>';
 print "	<th><span class='hidden-sm hidden-xs'>"._('Point B').'</span></th>';
 print "	<th><span class='hidden-sm hidden-xs'>"._('Comment').'</span></th>';
+$colspanCustom = 0;
 if(sizeof(@$custom_fields) > 0) {
 	foreach($custom_fields as $field) {
 		if(!in_array($field['name'], $hidden_circuit_fields)) {
@@ -78,13 +85,13 @@ else {
 	foreach ($circuits as $circuit) {
 		// reformat locations
 		$locationA = $Tools->reformat_circuit_location ($circuit->device1, $circuit->location1);
-		$locationA_html = "<span class='text-muted'>Not set</span>";
+		$locationA_html = "<span class='text-muted'>"._("Not set")."</span>";
 		if($locationA!==false) {
 			$locationA_html = "<a href='".create_link($_GET['page'],$locationA['type'],$locationA['id'])."'>$locationA[name]</a> <i class='fa fa-gray $locationA[icon]'></i>";
 		}
 
 		$locationB = $Tools->reformat_circuit_location ($circuit->device2, $circuit->location2);
-		$locationB_html = "<span class='text-muted'>Not set</span>";
+		$locationB_html = "<span class='text-muted'>"._("Not set")."</span>";
 		if($locationB!==false) {
 			$locationB_html = "<a href='".create_link($_GET['page'],$locationB['type'],$locationB['id'])."'>$locationB[name]</a> <i class='fa fa-gray $locationB[icon]'></i>";
 		}
@@ -120,16 +127,16 @@ else {
         print "<td class='actions'>";
         $links = [];
         if($User->get_module_permissions ("circuits")>=User::ACCESS_R) {
-            $links[] = ["type"=>"header", "text"=>"Show circuit"];
-            $links[] = ["type"=>"link", "text"=>"View", "href"=>create_link($_GET['page'], "circuits", $circuit->id), "icon"=>"eye", "visible"=>"dropdown"];
+            $links[] = ["type"=>"header", "text"=>_("Show circuit")];
+            $links[] = ["type"=>"link", "text"=>_("View"), "href"=>create_link($_GET['page'], "circuits", $circuit->id), "icon"=>"eye", "visible"=>"dropdown"];
             $links[] = ["type"=>"divider"];
         }
         if($User->get_module_permissions ("circuits")>=User::ACCESS_RW) {
-            $links[] = ["type"=>"header", "text"=>"Manage circuit"];
-            $links[] = ["type"=>"link", "text"=>"Edit circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='edit' data-circuitid='$circuit->id'", "icon"=>"pencil"];
+            $links[] = ["type"=>"header", "text"=>_("Manage circuit")];
+            $links[] = ["type"=>"link", "text"=>_("Edit circuit"), "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='edit' data-circuitid='$circuit->id'", "icon"=>"pencil"];
         }
         if($User->get_module_permissions ("circuits")>=User::ACCESS_RWA) {
-            $links[] = ["type"=>"link", "text"=>"Delete circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='delete' data-circuitid='$circuit->id'", "icon"=>"times"];
+            $links[] = ["type"=>"link", "text"=>_("Delete circuit"), "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='delete' data-circuitid='$circuit->id'", "icon"=>"times"];
         }
         // print links
         print $User->print_actions($User->user->compress_actions, $links);

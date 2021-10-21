@@ -1,5 +1,8 @@
 <?php
 
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../../functions/include-only.php' );
+
 # perm check
 $User->check_module_permissions ("circuits", User::ACCESS_R, true, false);
 
@@ -24,7 +27,7 @@ print "<table class='ipaddress_subnet table-condensed table-auto'>";
 	print "	<th>". _('Comment').'</th>';
 	print "	<td>$logical_circuit->comments</td>";
 	print "</tr>";
-      
+
       /* Maybe put in a calculated cost value here */
 
 
@@ -62,10 +65,10 @@ print "<table class='ipaddress_subnet table-condensed table-auto'>";
 		// actions
 		print "<td class='actions'>";
         $links = [];
-        $links[] = ["type"=>"header", "text"=>"Manage circuit"];
-        $links[] = ["type"=>"link", "text"=>"Edit circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/circuits/edit-logical-circuit.php' data-class='700' data-action='edit' data-circuitid='$logical_circuit->id'", "icon"=>"pencil"];
+        $links[] = ["type"=>"header", "text"=>_("Manage circuit")];
+        $links[] = ["type"=>"link", "text"=>_("Edit circuit"), "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/circuits/edit-logical-circuit.php' data-class='700' data-action='edit' data-circuitid='$logical_circuit->id'", "icon"=>"pencil"];
         if($User->get_module_permissions ("circuits")>=User::ACCESS_RWA) {
-            $links[] = ["type"=>"link", "text"=>"Delete circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-logical-circuit.php' data-class='700' data-action='delete' data-circuitid='$logical_circuit->id'", "icon"=>"times"];
+            $links[] = ["type"=>"link", "text"=>_("Delete circuit"), "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-logical-circuit.php' data-class='700' data-action='delete' data-circuitid='$logical_circuit->id'", "icon"=>"times"];
         }
         // print links
         print $User->print_actions($User->user->compress_actions, $links, true, true);

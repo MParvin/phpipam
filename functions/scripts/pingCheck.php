@@ -49,11 +49,12 @@ $Scan->ping_set_exit(true);
 $Scan->set_debugging(false);
 // fetch agent
 $agent = $Tools->fetch_object("scanAgents", "id", 1);
-// set address types array
-$Tools->get_addresses_types ();
 // change scan type?
 if(@$config['ping_check_method'])
 $Scan->reset_scan_method ($config['ping_check_method']);
+
+# Check if scanning has been disabled
+if($Scan->icmp_type=="none") { $Result->show("danger", _('Scanning disabled').' (scanPingType=None)', true, true); }
 
 // set ping statuses
 $statuses = explode(";", $Scan->settings->pingStatus);

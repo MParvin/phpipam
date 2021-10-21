@@ -1,7 +1,7 @@
 <?php
 
-# Check we have been included via subnet-scan-excute.php and not called directly
-require("subnet-scan-check-included.php");
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../functions/include-only.php' );
 
 /*
  * Update alive status of all hosts in subnet
@@ -27,9 +27,6 @@ if(json_last_error() !== JSON_ERROR_NONE)
 # set blank values
 if (!isset($script_result->values->alive) || is_null($script_result->values->alive) )	{ $script_result->values->alive = array(); }
 if (!isset($script_result->values->dead)  || is_null($script_result->values->dead) )	{ $script_result->values->dead = array(); }
-
-# set address types array
-$Tools->get_addresses_types ();
 
 # if method is fping we need to check against existing hosts because it produces list of all ips !
 if ($User->settings->scanPingType=="fping" && isset($script_result->values->alive)) {

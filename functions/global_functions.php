@@ -8,6 +8,16 @@ if(!function_exists('gettext')) {
 	function _($text) 			{ return $text; }
 }
 
+
+/**
+ * Disable php errors on output scripts (json,xml,crt,sql...)
+ */
+function disable_php_errors() {
+	# Don't corrupt json,xml,sql,png... output with php errors!
+	ini_set('display_errors', 0);
+	ini_set('display_startup_errors', 0);
+}
+
 /**
  * Supported in PHP 5 >= 5.6.0
  * A timing safe equals comparison more info here: http://blog.ircmaxell.com/2014/11/its-all-about-time.html.
@@ -77,7 +87,7 @@ function create_link ($l0 = null, $l1 = null, $l2 = null, $l3 = null, $l4 = null
 		$link = BASE.implode('/', $parts);
 
 		# IP search fix
-		if (!is_null($parts[6]) || ($parts[0]=="tools" && $parts[1]=="search" && isset($parts[2])))
+		if ((isset($parts[6]) && !is_null($parts[6])) || (isset($parts[2]) && $parts[0]=="tools" && $parts[1]=="search"))
 			return $link;
 
 		return $link.'/';
@@ -137,4 +147,85 @@ function php_feature_missing($required_extensions = null, $required_functions = 
 	}
 
 	return false;
+}
+
+/**
+ * Set phpIPAM UI locale in order of preference
+ *  1) $_SESSION['ipamlanguage']
+ *  2) Administration -> phpIPAM settings -> Default language
+ *  3) LC_ALL environment
+ *  4) HTTP_ACCEPT_LANGUAGE header
+ */
+function set_ui_language($default_lang = null) {
+
+	if (php_feature_missing(["gettext", "pcre"]))
+		return;
+
+	$user_lang = isset($_SESSION['ipamlanguage']) ? $_SESSION['ipamlanguage'] : null;
+	$sys_lang  = is_string(getenv("LC_ALL")) ? getenv("LC_ALL") : null;
+
+	// Read accepted HTTP languages
+	$http_accept_langs = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']) : [];
+	// remove ;q= (q-factor weighting)
+	$http_accept_langs = preg_replace("/;.*$/", "", $http_accept_langs);
+
+	// Try each langage in order of preference
+	$langs = array_merge([$user_lang, $default_lang, $sys_lang], $http_accept_langs);
+
+	foreach($langs as $lang) {
+		if (!is_string($lang) || strlen($lang)==0)
+			continue;
+
+		if (!file_exists(dirname(__FILE__)."/locale/$lang/LC_MESSAGES/phpipam.mo"))
+			continue;
+
+		putenv("LC_ALL=".$lang);
+
+		// https://help.ubuntu.com/community/EnvironmentVariables
+		// Unlike "LANG" and "LC_*", "LANGUAGE" should not be assigned a complete locale name including the encoding part (e.g. ".UTF-8").
+		putenv("LANG=".$lang);
+		putenv("LANGUAGE=".preg_replace("/\.utf-?8/i", "", $lang));
+
+		setlocale(LC_ALL, $lang);
+
+		bind_textdomain_codeset('phpipam', 'UTF-8');
+		bindtextdomain("phpipam", dirname(__FILE__)."/locale");
+		textdomain("phpipam");
+
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Set HTTP cookie with mandatory samesite attribute
+ * Required to support php <7.3 and modern browsers
+ *
+ * @param   string $name
+ * @param   mixed $value
+ * @param   int $lifetime
+ * @param   bool $httponly
+ * @return  void
+ */
+function setcookie_samesite($name, $value, $lifetime, $httponly=false) {
+
+	$lifetime = (int) $lifetime;
+
+	# Manually set cookie via header, php native support for samesite attribute is >=php7.3
+
+	$name = urlencode($name);
+	$value = urlencode($value);
+
+	$tz = date_default_timezone_get();
+	date_default_timezone_set('UTC');
+	$expire_date = date('r', time()+$lifetime);
+	date_default_timezone_set($tz);
+
+	$samesite = Config::ValueOf("cookie_samesite", "Lax");
+	if (!in_array($samesite, ["None", "Lax", "Secure"])) $samesite="Lax";
+
+	$httponly = ($httponly===true) ? ' HttpOnly;' : '';
+
+	header("Set-Cookie: $name=$value; expires=$expire_date; Max-Age=$lifetime; path=/; SameSite=$samesite;".$httponly);
 }

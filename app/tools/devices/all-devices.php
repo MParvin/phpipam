@@ -9,12 +9,6 @@ $('body').tooltip({ selector: '[rel=tooltip]' });
  * Script to display devices
  *
  */
-
-# rack object
-if($User->settings->enableRACK=="1") {
-	$Racks      = new phpipam_rack ($Database);
-}
-
 # verify that user is logged in
 $User->check_user_session();
 # perm check
@@ -22,6 +16,11 @@ $User->check_module_permissions ("devices", User::ACCESS_R, true, false);
 
 # filter devices or fetch print all?
 $devices = $Tools->fetch_all_objects("devices", "hostname");
+if($User->settings->enableRACK=="1") {
+	# rack object
+	$Racks = new phpipam_rack ($Database);
+	$Racks->add_rack_start_print($devices);
+}
 $device_types = $Tools->fetch_all_objects ("deviceTypes", "tid");
 
 # get custom device fields
@@ -132,9 +131,9 @@ else {
 	        print "<td>";
 	        # rack
 	        $rack = $Racks->fetch_rack_details ($device['rack']);
-	        if ($rack!==false) {
+	        if (is_object($rack)) {
 	            print "<a href='".create_link("tools", "racks", $rack->id)."'>".$rack->name."</a><br>";
-	            print "<span class='badge badge1 badge5'>"._('Position').": $device[rack_start], "._("Size").": $device[rack_size] U</span>";
+	            print "<span class='badge badge1 badge5'>"._('Position').": $device[rack_start_print], "._("Size").": $device[rack_size] U</span>";
 	        }
 	        print "</td>";
 	    }
@@ -171,16 +170,16 @@ else {
             // links
             print "<td class='actions'>";
             $links = [];
-            $links[] = ["type"=>"header", "text"=>"Manage device"];
-            $links[] = ["type"=>"link", "text"=>"Edit device", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/devices/edit.php' data-class='500' data-action='edit' data-switchId='$device[id]'", "icon"=>"pencil"];
+            $links[] = ["type"=>"header", "text"=>_("Manage device")];
+            $links[] = ["type"=>"link", "text"=>_("Edit device"), "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/devices/edit.php' data-class='500' data-action='edit' data-switchId='$device[id]'", "icon"=>"pencil"];
 
             if($User->get_module_permissions ("devices")>=User::ACCESS_RWA) {
-	            $links[] = ["type"=>"link", "text"=>"Delete device", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/devices/edit.php' data-class='500' data-action='delete' data-switchId='$device[id]'", "icon"=>"times"];
+	            $links[] = ["type"=>"link", "text"=>_("Delete device"), "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/devices/edit.php' data-class='500' data-action='delete' data-switchId='$device[id]'", "icon"=>"times"];
 	            $links[] = ["type"=>"divider"];
             }
 			if($User->settings->enableSNMP=="1" && $User->is_admin(false)) {
-	            $links[] = ["type"=>"header", "text"=>"SNMP"];
-	            $links[] = ["type"=>"link", "text"=>"Manage SNMP", "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/devices/edit-snmp.php' data-class='500' data-action='edit' data-switchId='$device[id]''", "icon"=>"cogs"];
+	            $links[] = ["type"=>"header", "text"=>_("SNMP")];
+	            $links[] = ["type"=>"link", "text"=>_("Manage SNMP"), "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/devices/edit-snmp.php' data-class='500' data-action='edit' data-switchId='$device[id]''", "icon"=>"cogs"];
 			}
             // print links
             print $User->print_actions($User->user->compress_actions, $links);

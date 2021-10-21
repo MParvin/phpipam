@@ -7,64 +7,6 @@
  */
 class Sections_controller extends Common_api_functions {
 
-
-	/**
-	 * _params provided
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $_params;
-
-	/**
-	 * custom_fields
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	public $custom_fields;
-
-	/**
-	 * Database object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Database;
-
-	/**
-	 *  Response handler
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Response;
-
-	/**
-	 * Master Subnets object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Subnets;
-
-	/**
-	 * Master Sections object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Sections;
-
-	/**
-	 * Master Tools object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Tools;
-
-
 	/**
 	 * __construct function
 	 *
@@ -212,19 +154,6 @@ class Sections_controller extends Common_api_functions {
 
 
 
-	/**
-	 * HEAD, no response
-	 *
-	 * @access public
-	 * @return void
-	 */
-	public function HEAD () {
-		return $this->GET ();
-	}
-
-
-
-
 
 	/**
 	 * Creates new section
@@ -353,11 +282,9 @@ class Sections_controller extends Common_api_functions {
 		if($subnet===false)
 														{ $this->Response->throw_exception(200, "Subnet does not exist"); }
         # calculate
-        $subnet_usage = $this->Subnets->calculate_subnet_usage ($subnet, true);     //Calculate free/used etc
+        $subnet_usage = $this->Subnets->calculate_subnet_usage ($subnet);     //Calculate free/used etc
 
         # return
         return $subnet_usage;
 	 }
 }
-
-?>

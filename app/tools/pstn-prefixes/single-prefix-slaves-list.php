@@ -44,7 +44,7 @@ else {
     # if none than print
     if($subprefixes===false) {
         print "<tr>";
-        print " <td colspan='$colspan'>".$Result->show("info","No PSTN prefixes configured", false, false, true)."</td>";
+        print " <td colspan='$colspan'>".$Result->show("info",_("No PSTN prefixes configured"), false, false, true)."</td>";
         print "</tr>";
     }
     else {
@@ -122,11 +122,11 @@ else {
 
                 $links = [];
                 if($User->get_module_permissions ("pstn")>=User::ACCESS_RW) {
-                $links[] = ["type"=>"header", "text"=>"Manage"];
-                $links[] = ["type"=>"link", "text"=>"Edit prefix", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/tools/pstn-prefixes/edit.php' data-class='700' data-action='edit' data-id='$sp->id'", "icon"=>"pencil"];
+                $links[] = ["type"=>"header", "text"=>_("Manage")];
+                $links[] = ["type"=>"link", "text"=>_("Edit prefix"), "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/tools/pstn-prefixes/edit.php' data-class='700' data-action='edit' data-id='$sp->id'", "icon"=>"pencil"];
                 }
                 if($User->get_module_permissions ("pstn")>=User::ACCESS_RWA) {
-                $links[] = ["type"=>"link", "text"=>"Delete prefix", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/tools/pstn-prefixes/edit.php' data-class='700' data-action='delete' data-id='$sp->id'", "icon"=>"times"];
+                $links[] = ["type"=>"link", "text"=>_("Delete prefix"), "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/tools/pstn-prefixes/edit.php' data-class='700' data-action='delete' data-id='$sp->id'", "icon"=>"times"];
                 }
                 print $User->print_actions($User->user->compress_actions, $links);
 

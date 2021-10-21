@@ -30,7 +30,7 @@ if($slaves) {
 	}
 
 	# first print belonging folders
-	if(isset($folders)) {
+	if(isset($folders) && @$_GET['sPage']!=="map" && @$_GET['sPage']!=="mapsearch") {
 		# print title
 		print "<h4>"._("Folder")." $folder[description] "._('has')." ". sizeof($folders)." "._('directly nested folders').":</h4><hr>";
 
@@ -71,7 +71,7 @@ if($slaves) {
 		print "</table>";
 	}
 	# print subnets
-	if(sizeof($subnets)>0) {
+	if(sizeof($subnets)>0 && @$_GET['sPage']!=="map" && @$_GET['sPage']!=="mapsearch") {
 		# title
 		print "<h4>"._("Folder")." $folder[description] "._('has')." ".sizeof($subnets)." "._('directly nested subnets').":</h4><hr><br>";
 
@@ -119,7 +119,7 @@ if($slaves) {
 				}
 
 				// calculate usage
-                $calculate  = $Subnets->calculate_subnet_usage ($slave, false);
+                $calculate  = $Subnets->calculate_subnet_usage ($slave);
 
 				# add full information
                 $fullinfo = $slave['isFull']==1 ? " <span class='badge badge1 badge2 badge4'>"._("Full")."</span>" : "";
@@ -150,6 +150,13 @@ if($slaves) {
 					print "	<td class='actions'>";
 					print "	<div class='btn-group'>";
 					print "		<button class='btn btn-xs btn-default editSubnet'     data-action='edit'   data-subnetid='".$slave['id']."'  data-sectionid='".$slave['sectionId']."'><i class='fa fa-gray fa fa-pencil'></i></button>";
+					if($User->is_subnet_favourite($slave['id'])){
+                                                print " <a class='btn btn-xs btn-default btn-info editFavourite favourite-$slave[id]' href='' data-container='body' rel='tooltip' title='"._('Click to remove from favourites')."' data-subnetId='$slave[id]' data-action='remove'><i class='fa fa-star></i></a>";
+                                        }
+					else{
+                                                print " <a class='btn btn-xs btn-default editFavourite favourite-$slave[id]' href='' data-container='body' rel='tooltip' title='"._('Click to add to favourites')."' data-subnetId='$slave[id]' data-action='add'><i class='fa fa-star fa-star-o'></i></a>";
+                                        }
+
 					print "		<button class='btn btn-xs btn-default showSubnetPerm' data-action='show'   data-subnetid='".$slave['id']."'  data-sectionid='".$slave['sectionId']."'><i class='fa fa-gray fa fa-tasks'></i></button>";
 					print "		<button class='btn btn-xs btn-default editSubnet'     data-action='delete' data-subnetid='".$slave['id']."'  data-sectionid='".$slave['sectionId']."'><i class='fa fa-gray fa fa-times'></i></button>";
 					print "	</div>";

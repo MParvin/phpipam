@@ -51,17 +51,14 @@ if($_POST['action']=="add" || $_POST['action']=="edit") {
 
         // fetch latlng
         if(strlen($_POST['lat'])==0 && strlen($_POST['long'])==0 && strlen($_POST['address'])>0) {
-            $latlng = $Tools->get_latlng_from_address ($_POST['address']);
+            $OSM = new OpenStreetMap($Database);
+            $latlng = $OSM->get_latlng_from_address ($_POST['address']);
             if($latlng['lat']!=NULL && $latlng['lng']!=NULL) {
                 $_POST['lat'] = $latlng['lat'];
                 $_POST['long'] = $latlng['lng'];
             }
             else {
-                if (!empty($latlng['info'])) {
-                    $Result->show("info", escape_input($latlng['info']), false);
-                } else {
-                    $Result->show("warning", _('Failed to update location lat/lng from google')."<br>".escape_input($latlng['error']), false);
-                }
+                $Result->show("warning", _("Failed to update location lat/lng from Nominatim").".<br>".escape_input($latlng['error']), false);
             }
         }
     }
@@ -79,7 +76,7 @@ if(sizeof($custom) > 0) {
 		}
 		//not null!
 		if($myField['Null']=="NO" && strlen($_POST[$myField['name']])==0) {
-																		{ $Result->show("danger", $myField['name'].'" can not be empty!', true); }
+			{ $Result->show("danger", $myField['name']." "._("can not be empty!"), true); }
 		}
 		# save to update array
 		$update[$myField['name']] = $_POST[$myField['name']];
@@ -103,8 +100,12 @@ if(isset($update)) {
 }
 
 # execute update
-if(!$Admin->object_modify ("locations", $_POST['action'], "id", $values))   { $Result->show("danger",  _("Location $_POST[action] failed"), false); }
-else																	    { $Result->show("success", _("Location $_POST[action] successful"), false); }
+if(!$Admin->object_modify ("locations", $_POST['action'], "id", $values)) {
+    $Result->show("danger", _("Location")." ".$_POST["action"]." "._("failed"), false);
+}
+else {
+    $Result->show("success", _("Location")." ".$_POST["action"]." "._("successful"), false);
+}
 
 // remove all references
 if($_POST['action']=="delete"){

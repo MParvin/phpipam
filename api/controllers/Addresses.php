@@ -7,79 +7,6 @@
  */
 class Addresses_controller extends Common_api_functions  {
 
-
-	/**
-	 * Input parameters
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $_params;
-
-	/**
-	 * Custom address fields
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $custom_fields;
-
-	/**
-	 * Database object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Database;
-
-	/**
-	 * Sections object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Sections;
-
-	/**
-	 * Response handler
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Response;
-
-	/**
-	 * Tools object from master Tools class
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Tools;
-
-	/**
-	 * Subnets object from master Subnets class
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	public $Subnets;
-
-	/**
-	 * Addresses object from master Addresses class
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $Addresses;
-
-	/**
-	 * Admin class form master Admin class
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $Admin;
-
 	/**
 	 * Saves details of currnt subnet
 	 *
@@ -354,20 +281,6 @@ class Addresses_controller extends Common_api_functions  {
 
 
 	/**
-	 * HEAD, no response
-	 *
-	 * @access public
-	 * @return void
-	 */
-	public function HEAD () {
-		return $this->GET ();
-	}
-
-
-
-
-
-	/**
 	 * Creates new address
 	 *
 	 *   /addresses/                            // create ip_addr in subnet (required parameters: ip, subnetId)
@@ -391,6 +304,9 @@ class Addresses_controller extends Common_api_functions  {
             }
     		if($subnet===false)                          { $this->Response->throw_exception(400, "Invalid subnet identifier"); }
     		if($subnet->isFull==1)                       { $this->Response->throw_exception(200, "No free addresses found (subnet is full)"); }
+
+    		// Obtain exclusive MySQL lock so parallel API requests on the same object are thread safe.
+    		$Lock = new LockForUpdate($this->Database, 'subnets', $subnet->id);
 
     		$this->_params->ip_addr = $this->Addresses->get_first_available_address ($subnet->id, $this->Subnets);
     		// null

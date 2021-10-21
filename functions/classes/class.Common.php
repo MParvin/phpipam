@@ -107,6 +107,16 @@ class Common_functions  {
 	protected $Net_IPv6;
 
 	/**
+	 * (array) IP address types from Addresses object
+	 *
+	 * (default value: null)
+	 *
+	 * @var mixed
+	 * @access public
+	 */
+	public $address_types = null;
+
+	/**
 	 * NET_DNS object
 	 *
 	 * @var mixed
@@ -215,11 +225,11 @@ class Common_functions  {
 	 *
 	 * @access public
 	 * @param mixed $table
-	 * @param mixed $method (default: null)
+	 * @param mixed $method
 	 * @param mixed $value
 	 * @return false|object
 	 */
-	public function fetch_object ($table=null, $method=null, $value) {
+	public function fetch_object ($table, $method, $value) {
 		// checks
 		if(!is_string($table)) return false;
 		if(strlen($table)==0)  return false;
@@ -505,7 +515,8 @@ class Common_functions  {
             'vrf'=>'vrfId',
             'changelog'=>'cid',
             'widgets'=>'wid',
-            'deviceTypes'=>'tid'];
+            'deviceTypes'=>'tid',
+            'nominatim_cache'=>'sha256'];
 
         return isset($mapings[$table]) ? $mapings[$table] : 'id';
     }
@@ -617,6 +628,67 @@ class Common_functions  {
 
 		// not array
 		return is_null($input) ? NULL : strip_tags($input);
+	}
+
+	/**
+	 * Remove <script>, <iframe> and JS HTML event attributes from HTML to protect from XSS
+	 *
+	 * @param   string  $html
+	 * @return  string
+	 */
+	public function noxss_html($html) {
+		if (!is_string($html) || strlen($html)==0)
+			return "";
+
+		// Convert encoding to UTF-8
+		$html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
+
+		// Throw loadHTML() parsing errors
+		$err_mode = libxml_use_internal_errors(false);
+
+		try {
+			$dom = new \DOMDocument();
+
+			if ($dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOBLANKS | LIBXML_NOWARNING | LIBXML_NOERROR) === false)
+				return "";
+
+			$banned_elements = ['script', 'iframe', 'embed'];
+			$remove_elements = [];
+
+			$elements = $dom->getElementsByTagName('*');
+
+			if (is_object($elements) && $elements->length>0) {
+				foreach($elements as $e) {
+					if (in_array($e->nodeName, $banned_elements)) {
+						$remove_elements[] = $e;
+						continue;
+					}
+
+					if (!$e->hasAttributes())
+						continue;
+
+					// remove on* HTML event attributes
+					foreach ($e->attributes as $attr) {
+						if (substr($attr->nodeName,0,2) == "on")
+							$e->removeAttribute($attr->nodeName);
+					}
+				}
+
+				// Remove banned elements
+				foreach($remove_elements as $e)
+					$e->parentNode->removeChild($e);
+
+				// Return sanitised HTML
+				$html = $dom->saveHTML();
+			}
+		} catch (Exception $e) {
+			$html = "";
+		}
+
+		// restore error mode
+		libxml_use_internal_errors($err_mode);
+
+		return is_string($html) ? $html : "";
 	}
 
 	/**
@@ -778,7 +850,7 @@ class Common_functions  {
 
 		foreach($logs as $key=>$req) {
 			# ignore __ and PHPSESSID
-			if( substr($key,0,2)=='__' || substr($key,0,9)=='PHPSESSID' || substr($key,0,4)=='pass' || $key=='plainpass' )
+			if( substr($key,0,2)=='__' || substr($key,0,9)=='PHPSESSID' || substr($key,0,4)=='pass' || $key=='plainpass' || $key=='values')
 				continue;
 
 			// NOTE The colon character ":" is reserved as it used in array_to_log for implode/explode.
@@ -890,58 +962,81 @@ class Common_functions  {
 	}
 
 	/**
+	 * Return port number used to access the site
+	 *
+	 * @access  private
+	 * @return  int
+	 */
+	private function httpPort() {
+		// If only HTTP_X_FORWARDED_PROTO='https' is set assume port=443. Override if required by setting HTTP_X_FORWARDED_PORT
+		if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && !isset($_SERVER['HTTP_X_FORWARDED_PORT'])) {
+			return ($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https') ? 443 : 80;
+		}
+		elseif (isset($_SERVER['HTTP_X_FORWARDED_PORT'])) {
+			return $_SERVER['HTTP_X_FORWARDED_PORT'];
+		}
+		elseif (isset($_SERVER['SERVER_PORT'])) {
+			return $_SERVER['SERVER_PORT'];
+		}
+		else {
+			return 80;
+		}
+	}
+
+	/**
 	* Returns true if site is accessed with https
 	*
 	* @access public
 	* @return bool
 	*/
-	public function isHttps() {
-		if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') {
+	public function isHttps () {
+		if (isset($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+			return ($_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https');
+		}
+		elseif (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] == 'on') {
 			return true;
 		}
-		if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https') {
+		elseif(isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') {
 			return true;
 		}
-		if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] == 'on') {
+		elseif($this->httpPort() == 443) {
 			return true;
 		}
-		return false;
+		else {
+			return false;
+		}
 	}
 
 	/**
 	 * Create URL for base
 	 *
 	 * @access public
-	 * @return mixed
+	 * @return string
 	 */
 	public function createURL () {
-		// SSL on standard port
-		if(($_SERVER['HTTPS'] == 'on') || ($_SERVER['SERVER_PORT'] == 443)) {
-			$url = "https://".$_SERVER['HTTP_HOST'];
-		}
-		// reverse proxy doing SSL offloading
-		elseif(isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https') {
-			if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
-				$url = "https://".$_SERVER['HTTP_X_FORWARDED_HOST'];
-			}
-			else {
-				$url = "https://".$_SERVER['HTTP_HOST'];
-			}
-		}
-		elseif(isset($_SERVER['HTTP_X_SECURE_REQUEST'])  && $_SERVER['HTTP_X_SECURE_REQUEST'] == 'true') {
-			$url = "https://".$_SERVER['SERVER_NAME'];
-		}
-		// custom port
-		elseif($_SERVER['SERVER_PORT']!="80" && (isset($_SERVER['HTTP_X_FORWARDED_PORT']) && $_SERVER['HTTP_X_FORWARDED_PORT']!="80")) {
-			$url = "http://".$_SERVER['SERVER_NAME'].":".$_SERVER['SERVER_PORT'];
-		}
-		// normal http
-		else {
-			$url = "http://".$_SERVER['HTTP_HOST'];
-		}
+		$proto = $this->isHttps() ? 'https' : 'http';
 
-		//result
-		return $url;
+		if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+			$url = $_SERVER['HTTP_X_FORWARDED_HOST'];
+		}
+		elseif (isset($_SERVER['HTTP_HOST'])) {
+			$url = $_SERVER['HTTP_HOST'];
+		}
+		elseif (isset($_SERVER['SERVER_NAME'])) {
+			$url = $_SERVER['SERVER_NAME'];
+		}
+		else {
+			$url = "localhost";
+		}
+		$host = parse_url("$proto://$url", PHP_URL_HOST) ?: "localhost";
+
+		$port = $this->httpPort();
+
+		if (($proto == "http" && $port == 80) || ($proto == "https" && $port == 443)) {
+			return "$proto://$host";
+		} else {
+			return "$proto://$host:$port";
+		}
 	}
 
 	/**
@@ -958,7 +1053,7 @@ class Common_functions  {
 		// create links only for varchar fields
 		if (strpos($field_type, "varchar")!==false) {
 			// regular expression
-			$reg_exUrl = "#((http|https|ftp|ftps|telnet|ssh)://\S+[^\s.,>)\];'\"!?])#";
+			$reg_exUrl = "#((http|https|ftp|ftps|telnet|ssh|rdp)://\S+[^\s.,>)\];'\"!?])#";
 
 			// Check if there is a url in the text, make the urls hyper links
 			$text = preg_replace($reg_exUrl, "<a href='$0' target='_blank'>$0</a>", $text);
@@ -1150,11 +1245,11 @@ class Common_functions  {
 	/**
 	 * Transforms int to ipv4
 	 *
-	 * @access public
+	 * @access private
 	 * @param mixed $ipv4long
 	 * @return mixed
 	 */
-	public function long2ip4($ipv4long) {
+	private function long2ip4($ipv4long) {
 		if (PHP_INT_SIZE==4) {
 			// As of php7.1 long2ip() no longer accepts strings.
 			// Convert unsigned int IPv4 to signed integer.
@@ -1166,11 +1261,11 @@ class Common_functions  {
 	/**
 	 * Transforms int to ipv6
 	 *
-	 * @access public
+	 * @access private
 	 * @param mixed $ipv6long
 	 * @return mixed
 	 */
-	public function long2ip6($ipv6long) {
+	private function long2ip6($ipv6long) {
 		$hex = sprintf('%032s', gmp_strval(gmp_init($ipv6long, 10), 16));
 		$ipv6 = implode(':', str_split($hex, 4));
 		// compress result
@@ -1232,6 +1327,43 @@ class Common_functions  {
 	public function transform_to_decimal ($address) {
 	    if ($this->identify_address ($address) == "IPv4" ) 				{ return( sprintf("%u", ip2long($address)) ); }
 	    else 								 							{ return($this->ip2long6($address)); }
+	}
+
+	/**
+	 * Returns array of address types
+	 *
+	 * @access protected
+	 * @return void
+	 */
+	protected function get_addresses_types () {
+		# from cache
+		if($this->address_types == null) {
+			# fetch
+			$types = $this->fetch_all_objects ("ipTags", "id");
+			if (!is_array($types))
+				return;
+
+			# save to array
+			$types_out = array();
+			foreach($types as $t) {
+				$types_out[$t->id] = (array) $t;
+			}
+			# save to cache
+			$this->address_types = $types_out;
+		}
+	}
+
+	/**
+	 * Translates address type from index (int) to type
+	 *
+	 *	e.g.: 0 > offline
+	 *
+	 * @access protected
+	 * @param mixed $index
+	 * @return mixed
+	 */
+	protected function translate_address_type ($index) {
+		return isset($this->address_types[$index]["type"]) ? $this->address_types[$index]["type"] : "Used";
 	}
 
 	/**
@@ -1299,49 +1431,10 @@ class Common_functions  {
 			curl_close ($curl);
 
 		} catch (Exception $e) {
+			$result['error_msg'] = $e->getMessage();
 		}
 
 		return $result;
-	}
-
-	/**
-	 * Fetches latlng from googlemaps by provided address
-	 *
-	 * @access public
-	 * @param mixed $address
-	 * @return array
-	 */
-	public function get_latlng_from_address ($address) {
-		$results = array('lat' => null, 'lng' => null, 'error' => null);
-
-		// get geocode API key
-		$gmaps_api_geocode_key = Config::ValueOf('gmaps_api_geocode_key');
-
-		if(empty($gmaps_api_geocode_key)) {
-			$results['info'] = _("Geocode API key not set");
-			return $results;
-		}
-
-		# Geocode address
-		$curl = $this->curl_fetch_url('https://maps.google.com/maps/api/geocode/json?address='.rawurlencode($address).'&sensor=false&key='.rawurlencode($gmaps_api_geocode_key), ["Accept: application/json"]);
-
-		if ($curl['result'] === false) {
-			$results['error'] = _("Geocode lookup failed. Check Internet connectivity.");
-			return $results;
-		}
-
-		$output= json_decode($curl['result']);
-
-		if (isset($output->results[0]->geometry->location->lat))
-			$results['lat'] = str_replace(",", ".", $output->results[0]->geometry->location->lat);
-
-		if (isset($output->results[0]->geometry->location->lng))
-			$results['lng'] = str_replace(",", ".", $output->results[0]->geometry->location->lng);
-
-		if (isset($output->error_message))
-			$results['error'] = $output->error_message;
-
-		return $results;
 	}
 
     /**
@@ -1368,13 +1461,13 @@ class Common_functions  {
      * @access public
      * @param mixed $field
      * @param mixed $object
-     * @param string $action
      * @param mixed $timepicker_index
      * @param bool $disabled
      * @param string $set_delimiter
+     * @param string $nameSuffix
      * @return array
      */
-    public function create_custom_field_input ($field, $object, $action, $timepicker_index, $disabled = false, $set_delimiter = "") {
+    public function create_custom_field_input ($field, $object, $timepicker_index, $disabled = false, $set_delimiter = "", $nameSuffix = "") {
         # make sure it is array
 		$field  = (array) $field;
 		$object = (object) $object;
@@ -1385,30 +1478,30 @@ class Common_functions  {
         $field['nameNew'] = str_replace(" ", "___", $field['name']);
         // required
         $required = $field['Null']=="NO" ? "*" : "";
-        // set default value if adding new object
-        if ($action=="add")	{ $object->{$field['name']} = $field['Default']; }
+		// set default value if adding new object
+		if (!property_exists($object, $field['name'])) {
+			$object->{$field['name']} = $field['Default'];
+		}
 
         //set, enum
         if(substr($field['type'], 0,3) == "set" || substr($field['type'], 0,4) == "enum") {
-        	$html = $this->create_custom_field_input_set_enum ($field, $object, $disabled_text, $set_delimiter);
+        	$html = $this->create_custom_field_input_set_enum ($field, $object, $disabled_text, $set_delimiter, $nameSuffix);
         }
         //date and time picker
         elseif($field['type'] == "date" || $field['type'] == "datetime") {
-        	$res = $this->create_custom_field_input_date ($field, $object, $timepicker_index, $disabled_text);
-			$timepicker_index = $res['timepicker_index'];
-			$html             = $res ['html'];
+        	$html = $this->create_custom_field_input_date ($field, $object, $timepicker_index, $disabled_text, $nameSuffix);
         }
         //boolean
         elseif($field['type'] == "tinyint(1)") {
-        	$html = $this->create_custom_field_input_boolean ($field, $object, $disabled_text);
+        	$html = $this->create_custom_field_input_boolean ($field, $object, $disabled_text, $nameSuffix);
         }
         //text
         elseif($field['type'] == "text") {
-        	$html = $this->create_custom_field_input_textarea ($field, $object, $disabled_text);
+        	$html = $this->create_custom_field_input_textarea ($field, $object, $disabled_text, $nameSuffix);
         }
 		//default - input field
 		else {
-            $html = $this->create_custom_field_input_input ($field, $object, $disabled_text);
+            $html = $this->create_custom_field_input_input ($field, $object, $disabled_text, $nameSuffix);
 		}
 
         # result
@@ -1422,14 +1515,15 @@ class Common_functions  {
     /**
      * Creates form input field for set and enum values
      *
-     * @access public
+     * @access private
      * @param mixed $field
      * @param mixed $object
      * @param string $disabled_text
      * @param string $set_delimiter
+     * @param string $nameSuffix
      * @return array
      */
-    public function create_custom_field_input_set_enum ($field, $object, $disabled_text, $set_delimiter = "") {
+    private function create_custom_field_input_set_enum ($field, $object, $disabled_text, $set_delimiter = "", $nameSuffix = "") {
 		$html = array();
     	//parse values
     	$field['type'] = trim(substr($field['type'],0,-1));
@@ -1437,7 +1531,7 @@ class Common_functions  {
     	//null
     	if($field['Null']!="NO") { array_unshift($tmp, ""); }
 
-    	$html[] = "<select name='$field[nameNew]' class='form-control input-sm input-w-auto' rel='tooltip' data-placement='right' title='$field[Comment]' $disabled_text>";
+    	$html[] = "<select name='$field[nameNew]$nameSuffix' class='form-control input-sm input-w-auto' rel='tooltip' data-placement='right' title='$field[Comment]' $disabled_text>";
     	foreach($tmp as $v) {
     		// set selected
 			$selected = $v==$object->{$field['name']} ? "selected='selected'" : "";
@@ -1465,14 +1559,15 @@ class Common_functions  {
     /**
      * Creates form input field for date fields.
      *
-     * @access public
+     * @access private
      * @param mixed $field
      * @param mixed $object
      * @param mixed $timepicker_index
      * @param string $disabled_text
+     * @param string $nameSuffix
      * @return array
      */
-    public function create_custom_field_input_date ($field, $object, $timepicker_index, $disabled_text) {
+    private function create_custom_field_input_date ($field, $object, &$timepicker_index, $disabled_text, $nameSuffix = "") {
    		$html = array ();
     	// just for first
     	if($timepicker_index==0) {
@@ -1494,28 +1589,26 @@ class Common_functions  {
     	else							{ $size = 19; $class='datetimepicker';	$format = "yyyy-MM-dd"; }
 
     	//field
-    	if(!isset($object->{$field['name']}))	{ $html[] = ' <input type="text" class="'.$class.' form-control input-sm input-w-auto" data-format="'.$format.'" name="'. $field['nameNew'] .'" maxlength="'.$size.'" rel="tooltip" data-placement="right" title="'.$field['Comment'].'" '.$disabled_text.'>'. "\n"; }
-    	else								    { $html[] = ' <input type="text" class="'.$class.' form-control input-sm input-w-auto" data-format="'.$format.'" name="'. $field['nameNew'] .'" maxlength="'.$size.'" value="'. $this->strip_xss($object->{$field['name']}). '" rel="tooltip" data-placement="right" title="'.$field['Comment'].'" '.$disabled_text.'>'. "\n"; }
+    	if(!isset($object->{$field['name']}))	{ $html[] = ' <input type="text" class="'.$class.' form-control input-sm input-w-auto" data-format="'.$format.'" name="'. $field['nameNew'].$nameSuffix .'" maxlength="'.$size.'" rel="tooltip" data-placement="right" title="'.$field['Comment'].'" '.$disabled_text.'>'. "\n"; }
+    	else								    { $html[] = ' <input type="text" class="'.$class.' form-control input-sm input-w-auto" data-format="'.$format.'" name="'. $field['nameNew'].$nameSuffix .'" maxlength="'.$size.'" value="'. $this->strip_xss($object->{$field['name']}). '" rel="tooltip" data-placement="right" title="'.$field['Comment'].'" '.$disabled_text.'>'. "\n"; }
 
     	// result
-    	return array (
-					"html"             => $html,
-					"timepicker_index" => $timepicker_index
-    	              );
+		return $html;
 	}
 
     /**
      * Creates form input field for boolean fields.
      *
-     * @access public
+     * @access private
      * @param mixed $field
      * @param mixed $object
      * @param string $disabled_text
+     * @param string $nameSuffix
      * @return array
      */
-    public function create_custom_field_input_boolean ($field, $object, $disabled_text) {
+    private function create_custom_field_input_boolean ($field, $object, $disabled_text, $nameSuffix = "") {
     	$html = array ();
-    	$html[] =  "<select name='$field[nameNew]' class='form-control input-sm input-w-auto' rel='tooltip' data-placement='right' title='$field[Comment]' $disabled_text>";
+    	$html[] =  "<select name='$field[nameNew]$nameSuffix' class='form-control input-sm input-w-auto' rel='tooltip' data-placement='right' title='$field[Comment]' $disabled_text>";
     	$tmp = array(0=>"No",1=>"Yes");
     	//null
     	if($field['Null']!="NO") { $tmp[2] = ""; }
@@ -1533,15 +1626,16 @@ class Common_functions  {
     /**
      * Creates form input field for text fields.
      *
-     * @access public
+     * @access private
      * @param mixed $field
      * @param mixed $object
      * @param string $disabled_text
+     * @param string $nameSuffix
      * @return array
      */
-    public function create_custom_field_input_textarea ($field, $object, $disabled_text) {
+    private function create_custom_field_input_textarea ($field, $object, $disabled_text, $nameSuffix = "") {
     	$html = array ();
-    	$html[] = ' <textarea class="form-control input-sm" name="'. $field['nameNew'] .'" placeholder="'. $this->print_custom_field_name ($field['name']) .'" rowspan=3 rel="tooltip" data-placement="right" title="'.$field['Comment'].'" '.$disabled_text.'>'. $object->{$field['name']}. '</textarea>'. "\n";
+    	$html[] = ' <textarea class="form-control input-sm" name="'. $field['nameNew'].$nameSuffix .'" placeholder="'. $this->print_custom_field_name ($field['name']) .'" rowspan=3 rel="tooltip" data-placement="right" title="'.$field['Comment'].'" '.$disabled_text.'>'. $object->{$field['name']}. '</textarea>'. "\n";
     	// result
     	return $html;
 	}
@@ -1549,13 +1643,14 @@ class Common_functions  {
     /**
      * Creates form input field for date fields.
      *
-     * @access public
+     * @access private
      * @param mixed $field
      * @param mixed $object
      * @param string $disabled_text
+     * @param string $nameSuffix
      * @return array
      */
-    public function create_custom_field_input_input ($field, $object, $disabled_text) {
+    private function create_custom_field_input_input ($field, $object, $disabled_text, $nameSuffix = "") {
         $html = array ();
         // max length
         $maxlength = 100;
@@ -1566,7 +1661,7 @@ class Common_functions  {
             $maxlength = str_replace(array("int","(",")"),"", $field['type']);
         }
         // print
-		$html[] = ' <input type="text" class="ip_addr form-control input-sm" name="'. $field['nameNew'] .'" placeholder="'. $this->print_custom_field_name ($field['name']) .'" value="'. $this->strip_xss($object->{$field['name']}). '" size="30" rel="tooltip" data-placement="right" maxlength="'.$maxlength.'" title="'.$field['Comment'].'" '.$disabled_text.'>'. "\n";
+		$html[] = ' <input type="text" class="form-control input-sm" name="'. $field['nameNew'].$nameSuffix .'" placeholder="'. $this->print_custom_field_name ($field['name']) .'" value="'. $this->strip_xss($object->{$field['name']}). '" size="30" rel="tooltip" data-placement="right" maxlength="'.$maxlength.'" title="'.$field['Comment'].'" '.$disabled_text.'>'. "\n";
     	// result
     	return $html;
 	}
@@ -1578,14 +1673,20 @@ class Common_functions  {
 	 *
 	 * @param  string $type
 	 * @param  string $value
+	 * @param  string $delimiter
 	 *
 	 * @return void
 	 */
-	public function print_custom_field ($type, $value) {
+	public function print_custom_field ($type, $value, $delimiter = false, $replacement = false) {
 		// escape
 		$value = str_replace("'", "&#39;", $value);
 		// create links
 		$value = $this->create_links ($value, $type);
+
+		// delimiter ?
+		if($delimiter !== false && $replacement !== false) {
+			$value = str_replace($delimiter, $replacement, $value);
+		}
 
 		//booleans
 		if($type=="tinyint(1)")	{
@@ -1612,7 +1713,7 @@ class Common_functions  {
 	 *
 	 * @return string
 	 */
-	public function print_custom_field_name ($name, $return = true) {
+	public function print_custom_field_name ($name) {
 		return strpos($name, "custom_")===0 ? substr($name, 7) : $name;
 	}
 
@@ -1920,7 +2021,7 @@ class Common_functions  {
     	if (isset($get['page'])) {
         	// dashboard
         	if ($get['page']=="dashboard") {
-            	return $this->settings->siteTitle." Dashboard";
+            	return $this->settings->siteTitle." "._("Dashboard");
         	}
         	// install, upgrade
         	elseif ($get['page']=="temp_share" || $get['page']=="request_ip" || $get['page']=="opensearch") {
@@ -2034,14 +2135,16 @@ class Common_functions  {
 	    // alignment
 	    $alignment = $left_align ? "dropdown-menu-left" : "dropdown-menu-right";
 	    // text
-	    $action_text = $print_text ? " <i class='fa fa-cogs'></i> Actions " : " <i class='fa fa-cogs'></i> ";
+	    $action_text = $print_text ? " <i class='fa fa-cogs'></i> "._("Actions")." " : " <i class='fa fa-cogs'></i> ";
 
 	    $html[] = "<div class='dropdown'>";
-	    $html[] = "  <button class='btn btn-xs btn-default dropdown-toggle ' type='button' id='dropdownMenu' data-toggle='dropdown' aria-haspopup='true' aria-expanded='true' rel='tooltip' title='"._("Actions")."'> "._($action_text)." <span class='caret'></span></button>";
+	    $html[] = "  <button class='btn btn-xs btn-default dropdown-toggle ' type='button' id='dropdownMenu' data-toggle='dropdown' aria-haspopup='true' aria-expanded='true' rel='tooltip' title='"._("Actions")."'> ".$action_text." <span class='caret'></span></button>";
 	    $html[] = "  <ul class='dropdown-menu $alignment' aria-labelledby='dropdownMenu'>";
 
 	    // loop items
 	    foreach ($items as $i) {
+			$i = array_merge(['class'=>null, 'dataparams'=>null], $i);
+
 	        // visible
 	        if (isset($i['visible'])) {
 	            if ($i['visible']!="dropdown") {
@@ -2059,7 +2162,7 @@ class Common_functions  {
 	        }
 	        // item
 	        else {
-	            $html[] = "   <li><a class='$i[class]' href='$i[href]' $i[dataparams]><i class='fa fa-$i[icon]'></i> "._($i['text'])."</a></li>";
+	            $html[] = "   <li><a class='$i[class]' href='$i[href]' $i[dataparams]><i class='fa fa-$i[icon]'></i> ".$i['text']."</a></li>";
 	        }
 	    }
 	    // remove last divider if present
@@ -2096,7 +2199,7 @@ class Common_functions  {
 	        }
 	        // save only links
 	        if($i['type']=="link") {
-	            $html[] = " <a href='$i[href]' class='btn btn-xs btn-default $i[class]' $i[dataparams] rel='tooltip' title='"._($i['text'])."'><i class='fa fa-$i[icon]'></i></a>";
+	            $html[] = " <a href='$i[href]' class='btn btn-xs btn-default $i[class]' $i[dataparams] rel='tooltip' title='".$i['text']."'><i class='fa fa-$i[icon]'></i></a>";
 	        }
 	    }
 	    // end

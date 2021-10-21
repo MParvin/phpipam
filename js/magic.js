@@ -183,12 +183,12 @@ $('body').on('touchstart.dropdown', '.dropdown-menu', function (e) { e.stopPropa
 
 /*    generate random password */
 function randomPass() {
-    var chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+    var chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890#_-![]=~";
     var pass = "";
     var x;
     var i;
-    for(x=0; x<10; x++) {
-        i = Math.floor(Math.random() * 62);
+    for(x=0; x<15; x++) {
+        i = Math.floor(Math.random() * 70);
         pass += chars.charAt(i);
     }
     return pass;
@@ -290,6 +290,10 @@ $('table.nopagination')
 
 $('table.sortable')
                  .attr('data-sortable', 'true')
+
+ $('table.25tall')
+                 .attr('data-page-size', '25')
+                 .attr('data-page-list', '[25,50,100,250,500,All]')
 
 // tooltips, popovers
 $('table.sorted').on('all.bs.table', function () {
@@ -765,9 +769,11 @@ $(document).on('click', 'a#saveScanResults', function() {
 	showSpinner();
 	var script   = $(this).attr('data-script');
 	var subnetId = $(this).attr('data-subnetId');
-	var postData = $('form.'+script+"-form").serialize();
+	var postData = "type="+script;
 	var postData = postData+"&subnetId="+subnetId;
-	var postData = postData+"&type="+script;
+	var postData = postData+"&"+$('form.'+script+"-form").serialize();
+	var postData = postData+"&canary=true";
+
 	$.post('app/subnets/scan/subnet-scan-result.php', postData, function(data) {
         $('#subnetScanAddResult').html(data);
         //hide if success!
@@ -1181,13 +1187,8 @@ $('form#cform').submit(function () {
 /* changePassRequired */
 $('form#changePassRequiredForm').submit(function() {
 	showSpinner();
-
-    //get username
-    var ipampassword1 = $('#ipampassword1', this).val();
-    var ipampassword2 = $('#ipampassword2', this).val();
-    //get login data
-    var postData = "ipampassword1="+ipampassword1+"&ipampassword2="+ipampassword2;
-
+    //get csrf_cookie, old + new passwords
+    var postData = $('form#changePassRequiredForm').serialize();
     $.post('app/tools/pass-change/result.php', postData, function(data) {
         $('div#changePassRequiredResult').html(data).fadeIn('fast');
         hideSpinner();
@@ -2221,10 +2222,11 @@ $(document).on("click", ".remove-snmp-subnet", function() {
 });
 ///add subnets to section
 $(document).on("click", "#add-subnets-to-section-snmp", function() {
-   var postData = $('form#editSubnetDetailsSNMPall').serialize();
-   var postData = postData+"&type=snmp-route-all";
-   submit_popup_data (".add-subnets-to-section-snmp-result", "app/subnets/scan/subnet-scan-result.php", postData);
-   return false;
+    var postData = "type=snmp-route-all";
+    var postData = postData+"&"+$('form#editSubnetDetailsSNMPall').serialize();
+    var postData = postData+"&canary=true";
+    submit_popup_data (".add-subnets-to-section-snmp-result", "app/subnets/scan/subnet-scan-result.php", postData);
+    return false;
 });
 
 

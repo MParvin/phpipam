@@ -60,25 +60,8 @@ else {
 			print "<tr>";
 			if($User->get_module_permissions ("vlan")>=User::ACCESS_R)
 		    print "	<td><a href='".create_link("tools","vlan", $vlan->domainId, $vlan->vlanId)."'><span class='badge badge1'>$vlan->number</span></a></td>";
-		    print "	<td class='small description'><a href='".create_link("subnets",$_GET['section'],$subnet['id'])."'>$subnet[description]</a></td>";
-		    print "	<td><a href='".create_link("subnets",$_GET['section'],$subnet['id'])."'>".$Subnets->transform_address($subnet['subnet'], "dotted")."/$subnet[mask] $fullinfo</a></td>";
-
-			# increase IP count
-			$ipCount = 0;
-			if(!$Subnets->has_slaves ($slave['id']))	{ $ipCount = $Addresses->count_subnet_addresses ($subnet['id']); }			//ip count - no slaves
-			else 										{
-				# fix for subnet and broadcast free space calculation
-				$ipCount = 0;															//initial count
-				$Subnets->reset_subnet_slaves_recursive ();
-				$slaves2 = $Subnets->fetch_subnet_slaves_recursive ($subnet['id']);		//fetch all slaves
-				foreach($Subnets->slaves as $s) {
-					$ipCount = $ipCount + $Addresses->count_subnet_addresses ($s['id']);
-					# subnet and broadcast add used
-					if($Subnets->get_ip_version ($s['subnet'])=="IPv4" && $s['mask']<31) {
-						$ipCount = $ipCount+2;
-					}
-				}
-			}
+		    print "	<td class='small description'><a href='".create_link("subnets",$subnet['sectionId'],$subnet['id'])."'>$subnet[description]</a></td>";
+		    print "	<td><a href='".create_link("subnets",$subnet['sectionId'],$subnet['id'])."'>".$Subnets->transform_address($subnet['subnet'], "dotted")."/$subnet[mask] $fullinfo</a></td>";
 
 			# print usage
 			$calculate = $Subnets->calculate_subnet_usage ($subnet);
